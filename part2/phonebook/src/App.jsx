@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import personService from "./services/persons";
 
 const Filter = ({ searchName, handleSearchName }) => {
 	return (
@@ -31,45 +32,72 @@ const PersonForm = ({
 	);
 };
 
-const Persons = ({ namesToShow }) => {
+const Persons = ({ namesToShow, deletePerson }) => {
 	return (
 		<>
 			{namesToShow.map((person) => (
-				<Person key={person.name} name={person.name} number={person.number} />
+				<Person
+					key={person.id}
+					name={person.name}
+					number={person.number}
+					id={person.id}
+					handleClick={() => deletePerson(person)}
+				/>
 			))}
 		</>
 	);
 };
 
-const Person = ({ name, number }) => {
+const Person = ({ name, number, id, handleClick }) => {
 	return (
-		<div key={name}>
-			{name} {number}
+		<div key={id}>
+			{name} {number} <button onClick={handleClick}>delete</button>
 		</div>
 	);
 };
 
 const App = () => {
-	const [persons, setPersons] = useState([
-		{ name: "Arto Hellas", number: "040-123456", id: 1 },
-		{ name: "Ada Lovelace", number: "39-44-5323523", id: 2 },
-		{ name: "Dan Abramov", number: "12-43-234345", id: 3 },
-		{ name: "Mary Poppendieck", number: "39-23-6423122", id: 4 },
-	]);
+	const [persons, setPersons] = useState([]);
 	const [newName, setNewName] = useState("");
 	const [newNumber, setNewNumber] = useState("");
 	const [searchName, setsearchName] = useState("");
 
+	useEffect(() => {
+		personService.getAll().then((initialPersons) => {
+			setPersons(initialPersons);
+		});
+	}, []);
+
 	const addName = (event) => {
 		event.preventDefault();
 		if (persons.find((person) => person.name === newName)) {
-			console.log("contains");
-			alert(`${newName} is already added to phonebook`);
+			if (
+				window.confirm(
+					`${newName} is already added to phonebook, replace the old number with a new one?`
+				)
+			) {
+				const person = persons.find((person) => person.name === newName);
+				const personObject = { ...person, number: newNumber };
+				personService.update(person.id, personObject).then((returnedPerson) => {
+					setPersons(
+						persons.map((person) =>
+							person.id !== personObject.id ? person : personObject
+						)
+					);
+					setNewName("");
+					setNewNumber("");
+				});
+			} else {
+				setNewName("");
+				setNewNumber("");
+			}
 		} else {
 			const personObject = { name: newName, number: newNumber };
-			setPersons(persons.concat(personObject));
-			setNewName("");
-			setNewNumber("");
+			personService.create(personObject).then((returnedPerson) => {
+				setPersons(persons.concat(returnedPerson));
+				setNewName("");
+				setNewNumber("");
+			});
 		}
 	};
 
@@ -83,6 +111,15 @@ const App = () => {
 
 	const handleSearchName = (event) => {
 		setsearchName(event.target.value);
+	};
+
+	const handleDeletePerson = (person) => {
+		console.log(`deleted ${person.id}`);
+		if (window.confirm(`Delete ${person.name}?`)) {
+			personService
+				.deletePerson(person.id)
+				.then(() => setPersons(persons.filter((n) => n.id !== person.id)));
+		}
 	};
 
 	const namesToShow =
@@ -105,9 +142,11 @@ const App = () => {
 				handleAddNumber={handleAddNumber}
 			/>
 			<h3>Numbers</h3>
-			<Persons namesToShow={namesToShow} />
+			<Persons
+				namesToShow={namesToShow}
+				deletePerson={(person) => handleDeletePerson(person)}
+			/>
 		</div>
 	);
 };
-
 export default App;
